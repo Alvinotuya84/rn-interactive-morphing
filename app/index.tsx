@@ -1,9 +1,10 @@
+import { BlurView } from '@/components/ui/BlurView';
 import { Center } from '@/components/ui/Center';
 import { HStack } from '@/components/ui/HStack';
 import { Text } from '@/components/ui/Text';
 import { VStack } from '@/components/ui/VStack';
 import React, { useState } from 'react';
-import { Dimensions, FlatList, Image, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Dimensions, Image, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler, PanGestureHandlerGestureEvent, TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, {
     Easing,
@@ -60,6 +61,7 @@ const Header = () => {
       entering={FadeIn}
       style={styles.header}
     >
+      <BlurView intensity={40} tint="dark" style={styles.headerBlur} />
       <VStack style={styles.headerContent}>
         <Text preset="heading" style={styles.headerTitle}>
           Team Members
@@ -87,9 +89,8 @@ const SubmittedUserItem = ({ user, index, onRemove, layoutWidth }: SubmittedUser
   const isDeletionActive = useSharedValue(false);
   
   React.useEffect(() => {
-    // Calculate a narrower width (70% of the layout width)
-    const targetWidth = Math.min(layoutWidth * 0.7, 300);
-    itemWidth.value = withSpring(targetWidth, {
+    // Use full width instead of percentage
+    itemWidth.value = withSpring(layoutWidth - 32, {
       mass: 1,
       damping: 15,
       stiffness: 100
@@ -175,8 +176,8 @@ const SubmittedUserItem = ({ user, index, onRemove, layoutWidth }: SubmittedUser
       
       <PanGestureHandler onGestureEvent={deleteGestureHandler}>
         <Animated.View style={[styles.submittedUserItem, animatedStyle]}>
-          {/* Background danger effect that grows from the right */}
           <Animated.View style={backgroundDangerStyle} />
+          <BlurView intensity={20} tint="light" style={styles.submittedItemBlur} />
           
           <HStack style={styles.submittedUserContent}>
             <Image source={{ uri: user.avatar }} style={styles.submittedAvatar} />
@@ -247,6 +248,7 @@ const UserCard = ({ user, onDragSuccess }: UserCardProps) => {
   return (
     <PanGestureHandler onGestureEvent={gestureHandler}>
       <Animated.View entering={FadeIn} style={[styles.userCard, animatedStyle]}>
+        <BlurView intensity={5} tint="light" style={styles.cardBlur} />
         <Image source={{ uri: user.avatar }} style={styles.avatar} />
         <Text preset="subheading" style={styles.userName}>{user.name}</Text>
         <Text preset="caption" style={styles.userRole}>{user.role}</Text>
@@ -255,7 +257,7 @@ const UserCard = ({ user, onDragSuccess }: UserCardProps) => {
   );
 };
 
-const SubmittedList = ({ 
+const SubmittedUsersList = ({ 
   submittedUsers, 
   onRemoveUser 
 }: { 
@@ -264,23 +266,21 @@ const SubmittedList = ({
 }) => {
   const { width: windowWidth } = useWindowDimensions();
   
-  const renderItem = ({ item, index }: { item: User; index: number }) => (
-    <SubmittedUserItem 
-      user={item} 
-      index={index} 
-      onRemove={onRemoveUser} 
-      layoutWidth={windowWidth}
-    />
-  );
-
   return (
-    <FlatList
-      data={submittedUsers}
-      renderItem={renderItem}
-      keyExtractor={(item) => item.id.toString()}
+    <ScrollView 
       contentContainerStyle={styles.submittedListContent}
       showsVerticalScrollIndicator={false}
-    />
+    >
+      {submittedUsers.map((user, index) => (
+        <SubmittedUserItem 
+          key={user.id}
+          user={user} 
+          index={index} 
+          onRemove={onRemoveUser} 
+          layoutWidth={windowWidth}
+        />
+      ))}
+    </ScrollView>
   );
 };
 
@@ -293,6 +293,7 @@ const SuccessOverlay = ({
 }) => {
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
+  const blurIntensity = useSharedValue(0);
   const checkmarkScale = useSharedValue(0);
   const checkmarkOpacity = useSharedValue(0);
   const overlayRadius = useSharedValue(0);
@@ -301,6 +302,7 @@ const SuccessOverlay = ({
     if (isVisible) {
       // Start the success animation sequence
       opacity.value = withTiming(1, { duration: 300 });
+      blurIntensity.value = withTiming(80, { duration: 400 });
       scale.value = withSequence(
         withTiming(1, { 
           duration: 600,
@@ -334,7 +336,8 @@ const SuccessOverlay = ({
 
       // Reset and cleanup
       const timeout = setTimeout(() => {
-        opacity.value = withTiming(0, { duration: 300 }, () => {
+        opacity.value = withTiming(0, { duration: 300 });
+        blurIntensity.value = withTiming(0, { duration: 300 }, () => {
           scale.value = 0;
           overlayRadius.value = 0;
           checkmarkScale.value = 0;
@@ -358,10 +361,20 @@ const SuccessOverlay = ({
     opacity: checkmarkOpacity.value,
   }));
 
+  const blurStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
   if (!isVisible) return null;
 
   return (
-    <View style={styles.overlayContainer}>
+    <View style={styles.fullScreenOverlayContainer}>
+      <BlurView 
+        intensity={80} 
+        tint="light" 
+        isAbsolute
+        style={blurStyle} 
+      />
       <Animated.View style={[styles.successOverlay, overlayStyle]}>
         <Animated.Text style={[styles.checkmark, checkStyle]}>
           ✓
@@ -397,6 +410,7 @@ const SubmitButton = ({ onSubmit, disabled }: { onSubmit: () => void; disabled: 
     <>
       <TouchableOpacity onPress={handlePress} disabled={disabled}>
         <Animated.View style={[styles.submitButton, buttonStyle]}>
+          <BlurView intensity={60} tint="dark" style={styles.buttonBlur} />
           <Text style={styles.submitButtonText}>Send</Text>
         </Animated.View>
       </TouchableOpacity>
@@ -464,6 +478,7 @@ export default function UsersScreen() {
         </View>
 
         <Animated.View style={[styles.submitZone, submitZoneStyle]}>
+          <BlurView intensity={30} tint="dark" style={styles.submitZoneBlur} />
           <VStack style={styles.submitZoneContent}>
             {submittedUsers.length === 0 ? (
               <Center style={styles.emptySubmitZone}>
@@ -473,7 +488,7 @@ export default function UsersScreen() {
               </Center>
             ) : (
               <>
-                <SubmittedList 
+                <SubmittedUsersList 
                   submittedUsers={submittedUsers} 
                   onRemoveUser={handleRemoveUser}
                 />
@@ -516,9 +531,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
+  },
+  headerBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     paddingHorizontal: 20,
+    height: '100%',
+    justifyContent: 'center',
   },
   headerTitle: {
     color: '#fff',
@@ -536,7 +559,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   submitZone: {
-    backgroundColor: '#4f46e5',
+    backgroundColor: 'rgba(79, 70, 229, 0.7)',
     borderRadius: 30,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -549,6 +572,10 @@ const styles = StyleSheet.create({
     elevation: 5,
     margin: 16,
     marginTop: 24,
+  },
+  submitZoneBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 30,
   },
   submitZoneContent: {
     flex: 1,
@@ -572,13 +599,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   submittedListContent: {
-    gap: 8,
     paddingVertical: 8,
   },
   submittedUserItemContainer: {
     position: 'relative',
-    height: 60,
-    marginBottom: 8,
+    height: 70,
+    marginBottom: 12,
+    width: '100%',
   },
   deleteIndicator: {
     position: 'absolute',
@@ -596,41 +623,50 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   submittedUserItem: {
-    height: 60,
-    backgroundColor: '#fff',
-    borderRadius: 30,
+    height: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 16,
     overflow: 'hidden',
     zIndex: 1,
     position: 'relative',
-    alignSelf: 'center',
+    width: '100%',
+  },
+  submittedItemBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
   },
   submittedUserContent: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
     zIndex: 2,
+    height: '100%',
   },
   submittedAvatar: {
     width: SUBMITTED_AVATAR_SIZE,
     height: SUBMITTED_AVATAR_SIZE,
     borderRadius: SUBMITTED_AVATAR_SIZE / 2,
     borderWidth: 2,
+    borderColor: '#fff',
   },
   submittedUserInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 16,
     justifyContent: 'center',
   },
   submittedUserName: {
     fontSize: 16,
+    color: '#1f2937',
+    fontWeight: '600',
   },
   submittedUserRole: {
-    fontSize: 12,
+    fontSize: 14,
+    color: '#4b5563',
   },
   userCard: {
     width: GRID_ITEM_WIDTH,
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 16,
     alignItems: 'center',
     shadowColor: '#000',
@@ -643,6 +679,11 @@ const styles = StyleSheet.create({
     elevation: 5,
     position: 'relative',
     zIndex: 1,
+    overflow: 'hidden',
+  },
+  cardBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
   },
   avatar: {
     width: 60,
@@ -665,7 +706,7 @@ const styles = StyleSheet.create({
   submitButton: {
     height: 56,
     width: 180,
-    backgroundColor: '#22c55e',
+    backgroundColor: 'rgba(34, 197, 94, 0.8)',
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
@@ -677,14 +718,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
+  },
+  buttonBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 28,
   },
   submitButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  overlayContainer: {
+  fullScreenOverlayContainer: {
     ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
