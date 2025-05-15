@@ -4,8 +4,9 @@ import { Text } from '@/components/ui/Text';
 import { VStack } from '@/components/ui/VStack';
 import React, { useState } from 'react';
 import { Dimensions, FlatList, Image, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+import { PanGestureHandler, PanGestureHandlerGestureEvent, TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, {
+    Easing,
     FadeIn,
     Layout,
     SlideInRight,
@@ -14,6 +15,8 @@ import Animated, {
     useAnimatedGestureHandler,
     useAnimatedStyle,
     useSharedValue,
+    withDelay,
+    withSequence,
     withSpring,
     withTiming,
 } from 'react-native-reanimated';
@@ -281,6 +284,130 @@ const SubmittedList = ({
   );
 };
 
+const SuccessOverlay = ({ 
+  isVisible, 
+  onAnimationComplete 
+}: { 
+  isVisible: boolean; 
+  onAnimationComplete: () => void;
+}) => {
+  const scale = useSharedValue(0);
+  const opacity = useSharedValue(0);
+  const checkmarkScale = useSharedValue(0);
+  const checkmarkOpacity = useSharedValue(0);
+  const overlayRadius = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (isVisible) {
+      // Start the success animation sequence
+      opacity.value = withTiming(1, { duration: 300 });
+      scale.value = withSequence(
+        withTiming(1, { 
+          duration: 600,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1) 
+        }),
+        withTiming(1.2, { 
+          duration: 200,
+          easing: Easing.bezier(0.33, 1, 0.68, 1)
+        }),
+        withTiming(1, { 
+          duration: 200,
+          easing: Easing.bezier(0.33, 1, 0.68, 1)
+        })
+      );
+      
+      // Morph from circle to rounded square
+      overlayRadius.value = withSequence(
+        withTiming(50, { duration: 600 }),
+        withTiming(20, { duration: 400 })
+      );
+
+      // Animate checkmark
+      checkmarkScale.value = withDelay(400, 
+        withSpring(1, {
+          mass: 1,
+          damping: 12,
+          stiffness: 100
+        })
+      );
+      checkmarkOpacity.value = withDelay(400, withTiming(1, { duration: 300 }));
+
+      // Reset and cleanup
+      const timeout = setTimeout(() => {
+        opacity.value = withTiming(0, { duration: 300 }, () => {
+          scale.value = 0;
+          overlayRadius.value = 0;
+          checkmarkScale.value = 0;
+          checkmarkOpacity.value = 0;
+          runOnJS(onAnimationComplete)();
+        });
+      }, 2000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isVisible]);
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+    borderRadius: overlayRadius.value + '%',
+  }));
+
+  const checkStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: checkmarkScale.value }],
+    opacity: checkmarkOpacity.value,
+  }));
+
+  if (!isVisible) return null;
+
+  return (
+    <View style={styles.overlayContainer}>
+      <Animated.View style={[styles.successOverlay, overlayStyle]}>
+        <Animated.Text style={[styles.checkmark, checkStyle]}>
+          ✓
+        </Animated.Text>
+      </Animated.View>
+    </View>
+  );
+};
+
+const SubmitButton = ({ onSubmit, disabled }: { onSubmit: () => void; disabled: boolean }) => {
+  const [showOverlay, setShowOverlay] = useState(false);
+  const buttonScale = useSharedValue(1);
+
+  const handlePress = () => {
+    buttonScale.value = withSequence(
+      withTiming(0.95, { duration: 100 }),
+      withTiming(1, { duration: 100 })
+    );
+    setShowOverlay(true);
+  };
+
+  const handleAnimationComplete = () => {
+    setShowOverlay(false);
+    onSubmit();
+  };
+
+  const buttonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+    opacity: disabled ? 0.5 : 1,
+  }));
+
+  return (
+    <>
+      <TouchableOpacity onPress={handlePress} disabled={disabled}>
+        <Animated.View style={[styles.submitButton, buttonStyle]}>
+          <Text style={styles.submitButtonText}>Send</Text>
+        </Animated.View>
+      </TouchableOpacity>
+      <SuccessOverlay 
+        isVisible={showOverlay} 
+        onAnimationComplete={handleAnimationComplete}
+      />
+    </>
+  );
+};
+
 export default function UsersScreen() {
   const [users, setUsers] = useState(USERS);
   const [submittedUsers, setSubmittedUsers] = useState<User[]>([]);
@@ -315,6 +442,12 @@ export default function UsersScreen() {
     transform: [{ scale: submitZoneScale.value }],
   }));
 
+  const handleSubmitTeam = () => {
+    // Handle team submission here
+    setSubmittedUsers([]);
+    setUsers(USERS);
+  };
+
   return (
     <ScrollView style={styles.container} bounces={false}>
       <Header />
@@ -339,10 +472,18 @@ export default function UsersScreen() {
                 </Text>
               </Center>
             ) : (
-              <SubmittedList 
-                submittedUsers={submittedUsers} 
-                onRemoveUser={handleRemoveUser}
-              />
+              <>
+                <SubmittedList 
+                  submittedUsers={submittedUsers} 
+                  onRemoveUser={handleRemoveUser}
+                />
+                <Center style={styles.submitButtonContainer}>
+                  <SubmitButton 
+                    onSubmit={handleSubmitTeam} 
+                    disabled={submittedUsers.length === 0} 
+                  />
+                </Center>
+              </>
             )}
           </VStack>
         </Animated.View>
@@ -516,5 +657,59 @@ const styles = StyleSheet.create({
   userRole: {
     color: '#64748b',
     textAlign: 'center',
+  },
+  submitButtonContainer: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  submitButton: {
+    height: 56,
+    width: 180,
+    backgroundColor: '#22c55e',
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  successOverlay: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 60,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
