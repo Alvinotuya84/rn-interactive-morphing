@@ -84,7 +84,13 @@ const SubmittedUserItem = ({ user, index, onRemove, layoutWidth }: SubmittedUser
   const isDeletionActive = useSharedValue(false);
   
   React.useEffect(() => {
-    itemWidth.value = withSpring(layoutWidth - 32);
+    // Calculate a narrower width (70% of the layout width)
+    const targetWidth = Math.min(layoutWidth * 0.7, 300);
+    itemWidth.value = withSpring(targetWidth, {
+      mass: 1,
+      damping: 15,
+      stiffness: 100
+    });
   }, [layoutWidth]);
 
   const deleteGestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent, GestureContext>({
@@ -414,10 +420,15 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: 20,
     margin: 16,
+    minHeight: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptySubmitText: {
     color: '#fff',
     opacity: 0.8,
+    fontSize: 18,
+    marginBottom: 8,
   },
   submittedListContent: {
     gap: 8,
@@ -450,6 +461,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 1,
     position: 'relative',
+    alignSelf: 'center',
   },
   submittedUserContent: {
     flex: 1,
